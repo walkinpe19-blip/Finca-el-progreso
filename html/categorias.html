@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Categorías | Finca Ganadera El Progreso</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+</head>
+
+<body class="gestion-page">
+
+<header>
+    <div class="logo">
+        <img src="../images/logo.png" class="logo-img">
+        <h2>Finca El Progreso</h2>
+    </div>
+    <nav>
+        <a href="../index.html">Inicio</a>
+        <a href="nosotros.html">Nosotros</a>
+        <a href="servicios.html">Servicios</a>
+        <a href="productos.html">Productos</a>
+        <a href="galeria.html">Galería</a>
+        <a href="contacto.html">Contacto</a>
+        <a href="gestion.html">Gestión</a>
+        <a href="categorias.html" class="activo">Categorías</a>
+        <a href="reportes.html">Reportes</a>
+    </nav>
+</header>
+
+<section class="gestion">
+    <div class="titulo-seccion">
+        <span>Categorías</span>
+        <h2>Administración de categorías</h2>
+        <p>Agrega, edita y elimina categorías. Si una categoría tiene productos, se mostrará la advertencia antes de borrarla.</p>
+    </div>
+
+    <div class="categoria-panel">
+        <form id="form-categoria" class="form-categoria">
+            <input type="hidden" id="categoria-editar-id">
+            <input type="text" id="categoria-nombre" placeholder="Nombre de la categoría" required>
+            <button type="submit" id="btn-guardar-categoria">Agregar</button>
+        </form>
+
+        <div id="mensaje-categorias" class="mensaje-categorias"></div>
+
+        <div class="categorias-listado">
+            <h3>Categorías existentes</h3>
+            <div id="lista-categorias"></div>
+        </div>
+
+        <div id="panel-confirmacion" class="confirmacion-eliminar oculto">
+            <h3>Esta categoría tiene productos asignados</h3>
+            <p>Estos productos quedarán sin categoría:</p>
+            <ul id="lista-productos-afectados"></ul>
+
+            <div class="acciones-confirmacion">
+                <button type="button" id="btn-cancelar-eliminacion">Cancelar</button>
+                <button type="button" id="btn-confirmar-eliminacion">Confirmar eliminación</button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer>
+    <div class="footer-contenido">
+        <div>
+            <h3>Finca El Progreso</h3>
+            <p>Más de 25 años ofreciendo calidad y confianza en el sector ganadero.</p>
+        </div>
+        <div>
+            <h3>Enlaces</h3>
+            <p>Inicio</p>
+            <p>Nosotros</p>
+            <p>Servicios</p>
+            <p>Contacto</p>
+        </div>
+        <div>
+            <h3>Síguenos</h3>
+            <div class="redes">
+                <i class="fab fa-facebook-f"></i>
+                <i class="fab fa-instagram"></i>
+                <i class="fab fa-whatsapp"></i>
+            </div>
+        </div>
+    </div>
+    <hr>
+    <p class="copyright"><i class="fa-regular fa-copyright"></i> 2026 Finca Ganadera El Progreso. Todos los derechos reservados.</p>
+</footer>
+
+<script src="../js/script.js"></script>
+</body>
+
+</html>

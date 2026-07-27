@@ -1,0 +1,293 @@
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Poppins',sans-serif;
+}
+
+html{
+    scroll-behavior:smooth;
+}
+
+body{
+    background:#f7f8f6;
+    color:#333;
+    line-height:1.7;
+}
+
+/*================ HEADER =================*/
+
+header{
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:18px 8%;
+    background:rgba(46,125,50,.90);
+    backdrop-filter:blur(12px);
+    z-index:1000;
+    box-shadow:0 5px 20px rgba(0,0,0,.15);
+}
+
+.logo{
+    display:flex;
+    align-items:center;
+    gap:15px;
+}
+
+.logo-img{
+    width:55px;
+}
+
+.logo h2{
+    color:#fff;
+    font-size:1.4rem;
+    font-weight:700;
+}
+
+nav{
+    display:flex;
+    gap:30px;
+}
+
+nav a{
+    color:white;
+    text-decoration:none;
+    font-weight:500;
+    position:relative;
+    transition:.3s;
+}
+
+nav a::after{
+    content:"";
+    position:absolute;
+    left:0;
+    bottom:-6px;
+    width:0;
+    height:2px;
+    background:#ffd54f;
+    transition:.3s;
+}
+
+nav a:hover,
+nav a.activo{
+    color:#ffd54f;
+}
+
+nav a:hover::after,
+nav a.activo::after{
+    width:100%;
+}
+
+/*================ HERO =================*/
+
+.hero{
+    height:60vh;
+    background:url("../images/ganado.jpg") center center/cover;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    position:relative;
+}
+
+.overlay{
+    position:absolute;
+    inset:0;
+    background:rgba(0,0,0,.55);
+}
+
+.hero-texto{
+    position:relative;
+    color:white;
+    text-align:center;
+    z-index:2;
+    animation:fadeUp 1s ease;
+}
+
+.hero-texto h1{
+    font-size:60px;
+    margin-bottom:15px;
+    text-shadow:2px 2px 10px rgba(0,0,0,.4);
+}
+
+.hero-texto p{
+    font-size:20px;
+    max-width:700px;
+}
+
+/*================ CONTENIDO =================*/
+
+.contenedor{
+    width:85%;
+    max-width:1200px;
+    margin:80px auto;
+}
+
+.info{
+    background:white;
+    padding:50px;
+    border-radius:18px;
+    box-shadow:0 10px 30px rgba(0,0,0,.08);
+    margin-bottom:60px;
+    animation:fadeUp 1s ease;
+}
+
+.info h2{
+    color:#2e7d32;
+    margin-bottom:25px;
+    font-size:35px;
+}
+
+.info p{
+    font-size:18px;
+    text-align:justify;
+}
+
+/*================ TARJETAS =================*/
+
+.mision{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    gap:30px;
+}
+
+.card{
+    background:white;
+    padding:40px 30px;
+    border-radius:18px;
+    text-align:center;
+    transition:.35s;
+    box-shadow:0 8px 25px rgba(0,0,0,.08);
+}
+
+.card:hover{
+    transform:translateY(-10px);
+    box-shadow:0 18px 35px rgba(0,0,0,.15);
+}
+
+.card i{
+    font-size:45px;
+    color:#2e7d32;
+    margin-bottom:20px;
+}
+
+.card h3{
+    margin-bottom:15px;
+    color:#2e7d32;
+}
+
+.card p{
+    font-size:16px;
+}
+
+/*================ ESTADISTICAS =================*/
+
+.estadisticas{
+    background:linear-gradient(135deg,#2e7d32,#43a047);
+    color:white;
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:30px;
+    padding:70px 8%;
+    text-align:center;
+}
+
+.dato{
+    animation:fadeUp 1.2s ease;
+}
+
+.dato h2{
+    font-size:50px;
+    margin-bottom:10px;
+}
+
+.dato p{
+    font-size:18px;
+}
+
+/*================ FOOTER =================*/
+
+footer{
+    background:#2e7d32;
+    color:white;
+    text-align:center;
+    padding:25px;
+}
+
+/*================ ANIMACIONES =================*/
+
+@keyframes fadeUp{
+
+    from{
+        opacity:0;
+        transform:translateY(40px);
+    }
+
+    to{
+        opacity:1;
+        transform:translateY(0);
+    }
+
+}
+
+/*================ RESPONSIVE =================*/
+
+@media(max-width:900px){
+
+    header{
+        flex-direction:column;
+        gap:20px;
+    }
+
+    nav{
+        flex-wrap:wrap;
+        justify-content:center;
+        gap:18px;
+    }
+
+    .hero-texto h1{
+        font-size:42px;
+    }
+
+    .hero-texto p{
+        font-size:18px;
+        width:90%;
+        margin:auto;
+    }
+
+    .info{
+        padding:35px;
+    }
+
+}
+
+@media(max-width:600px){
+
+    .hero{
+        height:50vh;
+    }
+
+    .hero-texto h1{
+        font-size:34px;
+    }
+
+    .hero-texto p{
+        font-size:16px;
+    }
+
+    .info h2{
+        font-size:28px;
+    }
+
+    .info p{
+        font-size:16px;
+    }
+
+    .dato h2{
+        font-size:40px;
+    }
+
+}
