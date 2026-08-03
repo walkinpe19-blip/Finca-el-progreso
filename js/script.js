@@ -77,8 +77,138 @@ function setupMapFrame() {
     });
 }
 
-const API_BASE = 'http://127.0.0.1:3000';
+const origin = window.location.origin;
+const isLocalHost = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
+const isLiveServerPort = window.location.port && window.location.port.startsWith('55');
+const usingBrowserFile = origin === 'null' || origin.startsWith('file:');
+
+let API_BASE = window.API_BASE || (usingBrowserFile || (isLocalHost && isLiveServerPort)
+    ? 'http://127.0.0.1:3000'
+    : origin);
+window.API_BASE = API_BASE;
+
+const CURRENT_ORIGIN = window.location.origin === 'null'
+    ? (window.location.protocol === 'file:' ? '' : window.location.origin)
+    : window.location.origin;
+const LOGIN_PAGE = CURRENT_ORIGIN ? `${CURRENT_ORIGIN}/html/login.html` : '/html/login.html';
+const PRODUCTOS_PAGE = CURRENT_ORIGIN ? `${CURRENT_ORIGIN}/html/productos.html` : '/html/productos.html';
+const REPORTES_PAGE = CURRENT_ORIGIN ? `${CURRENT_ORIGIN}/html/reportes.html` : '/html/reportes.html';
 let categoriaMap = {};
+let currentUser = null;
+
+function getToken() {
+    return localStorage.getItem('finca_token');
+}
+
+function setAuthHeader(headers = {}) {
+    const token = getToken();
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
+}
+
+function showAuthMessage(element, text, isSuccess = false) {
+    if (!element) return;
+    element.textContent = text;
+    element.classList.toggle('success', isSuccess);
+    element.classList.toggle('error', !isSuccess);
+}
+
+async function applyAuthState() {
+    const token = getToken();
+    const currentPage = window.location.pathname.split('/').pop();
+    const isAdminPage = ['gestion.html', 'categorias.html', 'usuarios.html'].includes(currentPage);
+
+    if (!token) {
+        currentUser = null;
+        updateNavForAuth();
+
+        // Redirigir si intenta acceder a páginas de admin sin autenticación
+        if (isAdminPage) {
+            window.location.replace(LOGIN_PAGE);
+        }
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/auth/me`, {
+            headers: setAuthHeader()
+        });
+        if (!response.ok) {
+            throw new Error('No autenticado');
+        }
+
+        currentUser = await response.json();
+        updateNavForAuth();
+
+        // Redirigir usuarios regulares que intenten acceder a gestion o categorias
+        if (isAdminPage && currentUser.rol !== 'admin') {
+            window.location.replace(REPORTES_PAGE);
+        }
+    } catch (error) {
+        currentUser = null;
+        localStorage.removeItem('finca_token');
+        updateNavForAuth();
+
+        // Redirigir si falla autenticación e intenta acceder a admin pages
+        if (isAdminPage) {
+            window.location.replace(LOGIN_PAGE);
+        }
+    }
+}
+
+function updateNavForAuth() {
+    const nav = document.querySelector('nav');
+    if (!nav) return;
+
+    const existingUser = document.getElementById('nav-user');
+    if (existingUser) existingUser.remove();
+
+    const existingLogin = Array.from(nav.querySelectorAll('a')).find(link => link.textContent.trim() === 'Iniciar sesión');
+    if (existingLogin) existingLogin.remove();
+
+    if (!currentUser) {
+        const loginLink = document.createElement('a');
+        loginLink.href = LOGIN_PAGE;
+        loginLink.textContent = 'Iniciar sesión';
+        nav.appendChild(loginLink);
+    } else {
+        const userContainer = document.createElement('div');
+        userContainer.style.display = 'flex';
+        userContainer.style.alignItems = 'center';
+        userContainer.style.gap = '15px';
+        
+        const userBlock = document.createElement('div');
+        userBlock.id = 'nav-user';
+        userBlock.className = 'nav-user';
+        userBlock.innerHTML = `
+            <div class="avatar">${(currentUser.nombre || 'U').charAt(0)}${(currentUser.apellido || 'U').charAt(0)}</div>
+            <div class="user-info">
+                <strong>${escapeHtml(currentUser.nombre)} ${escapeHtml(currentUser.apellido)}</strong>
+                <span>online</span>
+            </div>
+        `;
+        
+        const logoutBtn = document.createElement('button');
+        logoutBtn.id = 'logout-btn';
+        logoutBtn.textContent = 'Cerrar sesión';
+        logoutBtn.onclick = logout;
+        
+        userContainer.appendChild(userBlock);
+        userContainer.appendChild(logoutBtn);
+        nav.appendChild(userContainer);
+    }
+
+    const adminLinks = document.querySelectorAll('.nav-admin-only');
+    adminLinks.forEach(link => {
+        if (currentUser && currentUser.rol === 'admin') {
+            link.style.display = 'inline-block';
+        } else {
+            link.style.display = 'none';
+        }
+    });
+}
 
 function initSiteScripts() {
     window.addEventListener("scroll", toggleHeaderScroll);
@@ -88,15 +218,22 @@ function initSiteScripts() {
     setupMapFrame();
 }
 
-document.addEventListener("DOMContentLoaded", initSiteScripts);
+document.addEventListener("DOMContentLoaded", async () => {
+    initSiteScripts();
+    console.log('script.js loaded, API_BASE=', API_BASE);
+    await applyAuthState();
+    await cargarCategorias();
+    if (document.getElementById('tabla-productos')) {
+        await cargarReporteProductos();
+    }
+    if (document.getElementById('tabla-usuarios')) {
+        await cargarUsuarios();
+    }
+});
 
 let categoriaPendienteEliminar = null;
 
-document.addEventListener('DOMContentLoaded', async () => {
-    await cargarCategorias();
-    await cargarReporteProductos();
-
-    const form = document.getElementById('form-producto');
+const form = document.getElementById('form-producto');
     if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -120,7 +257,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log('POST /api/productos payload', payload);
                 const response = await fetch(`${API_BASE}/api/productos`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: setAuthHeader({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify(payload)
                 });
                 const data = await response.json();
@@ -167,7 +304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     esEdicion ? `${API_BASE}/api/categorias/${id}` : `${API_BASE}/api/categorias`,
                     {
                         method: esEdicion ? 'PUT' : 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: setAuthHeader({ 'Content-Type': 'application/json' }),
                         body: JSON.stringify({ nombre })
                     }
                 );
@@ -212,7 +349,73 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.location.href = url;
         });
     }
-});
+
+    const formLogin = document.getElementById('form-login');
+    if (formLogin) {
+        const message = document.getElementById('login-message');
+        const registered = new URLSearchParams(window.location.search).get('registered');
+        if (registered === '1') {
+            showAuthMessage(message, 'Usuario registrado. Inicia sesión.', true);
+            history.replaceState(null, '', window.location.pathname);
+        }
+        formLogin.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const correo = document.getElementById('login-correo').value.trim();
+            const contraseña = document.getElementById('login-password').value;
+            try {
+                const loginUrl = `${API_BASE}/api/auth/login`;
+                console.log('Login URL:', loginUrl);
+                const response = await fetch(loginUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ correo, contraseña })
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    showAuthMessage(message, data.error || 'No se pudo iniciar sesión.', false);
+                    return;
+                }
+                localStorage.setItem('finca_token', data.token);
+                currentUser = data.usuario;
+                updateNavForAuth();
+                window.location.href = '../index.html';
+            } catch (error) {
+                if (message) message.textContent = 'Error de conexión.';
+            }
+        });
+    }
+
+    const formRegistro = document.getElementById('form-registro');
+    if (formRegistro) {
+        formRegistro.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = document.getElementById('registro-message');
+            const payload = {
+                nombre: document.getElementById('registro-nombre').value.trim(),
+                apellido: document.getElementById('registro-apellido').value.trim(),
+                correo: document.getElementById('registro-correo').value.trim(),
+                telefono: document.getElementById('registro-telefono').value.trim(),
+                contraseña: document.getElementById('registro-password').value,
+                rol: 'usuario'
+            };
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    if (message) showAuthMessage(message, data.error || 'No se pudo registrar.', false);
+                    return;
+                }
+                formRegistro.reset();
+                window.location.href = 'login.html?registered=1';
+            } catch (error) {
+                if (message) message.textContent = 'Error de conexión.';
+            }
+        });
+    }
 
 async function cargarCategorias() {
     const selects = Array.from(document.querySelectorAll('#categoria_id, #editar-categoria_id'));
@@ -261,16 +464,21 @@ async function cargarReporteProductos() {
                 <td></td>
             `;
             const actions = tr.querySelector('td:last-child');
-            const editButton = document.createElement('button');
-            editButton.type = 'button';
-            editButton.textContent = 'Editar';
-            editButton.addEventListener('click', () => openEditModal(producto));
-            const deleteButton = document.createElement('button');
-            deleteButton.type = 'button';
-            deleteButton.textContent = 'Eliminar';
-            deleteButton.addEventListener('click', () => eliminarProducto(producto.id));
-            actions.appendChild(editButton);
-            actions.appendChild(deleteButton);
+            
+            if (currentUser && currentUser.rol === 'admin') {
+                const editButton = document.createElement('button');
+                editButton.type = 'button';
+                editButton.textContent = 'Editar';
+                editButton.addEventListener('click', () => openEditModal(producto));
+                const deleteButton = document.createElement('button');
+                deleteButton.type = 'button';
+                deleteButton.textContent = 'Eliminar';
+                deleteButton.addEventListener('click', () => eliminarProducto(producto.id));
+                actions.appendChild(editButton);
+                actions.appendChild(deleteButton);
+            } else {
+                actions.textContent = 'Solo lectura';
+            }
             tbody.appendChild(tr);
         });
     } catch (error) {
@@ -278,9 +486,48 @@ async function cargarReporteProductos() {
     }
 }
 
+async function cargarUsuarios() {
+    const tbody = document.getElementById('tabla-usuarios');
+    if (!tbody) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/usuarios`, {
+            headers: setAuthHeader()
+        });
+
+        if (!response.ok) {
+            tbody.innerHTML = '<tr><td colspan="5">No se pudo cargar la lista de usuarios.</td></tr>';
+            return;
+        }
+
+        const usuarios = await response.json();
+        tbody.innerHTML = '';
+
+        if (!usuarios.length) {
+            tbody.innerHTML = '<tr><td colspan="5">No hay usuarios registrados.</td></tr>';
+            return;
+        }
+
+        usuarios.forEach(usuario => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${usuario.id_usuario}</td>
+                <td>${escapeHtml(usuario.nombre)}</td>
+                <td>${escapeHtml(usuario.apellido)}</td>
+                <td>${escapeHtml(usuario.correo)}</td>
+                <td>${escapeHtml(usuario.rol)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (error) {
+        console.error('Error al cargar usuarios', error);
+        tbody.innerHTML = '<tr><td colspan="5">Error al cargar usuarios. Intenta nuevamente.</td></tr>';
+    }
+}
+
 async function eliminarProducto(id) {
     try {
-        const response = await fetch(`${API_BASE}/api/productos/${id}`, { method: 'DELETE' });
+        const response = await fetch(`${API_BASE}/api/productos/${id}`, { method: 'DELETE', headers: setAuthHeader() });
         if (response.ok) {
             cargarReporteProductos();
         }
@@ -334,7 +581,7 @@ async function manejarEnvioEdicion(event) {
         console.log('Actualizar producto', id, payload);
         const response = await fetch(`${API_BASE}/api/productos/${id}`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
+            headers: setAuthHeader({ 'Content-Type': 'application/json' }),
             body: JSON.stringify(payload)
         });
         const data = await response.json().catch(() => null);
@@ -347,6 +594,21 @@ async function manejarEnvioEdicion(event) {
     } catch (error) {
         console.error('Error de red al actualizar producto', error);
     }
+}
+
+async function logout() {
+    try {
+        await fetch(`${API_BASE}/api/auth/logout`, {
+            method: 'POST',
+            headers: setAuthHeader()
+        });
+    } catch (error) {
+        console.error('Error en logout:', error);
+    }
+    
+    localStorage.removeItem('finca_token');
+    currentUser = null;
+    window.location.href = '../index.html';
 }
 
 function escapeHtml(text) {
@@ -441,7 +703,8 @@ async function cargarCategoriasGestion() {
             item.querySelector('.btn-eliminar-categoria').addEventListener('click', async () => {
                 try {
                     const response = await fetch(`${API_BASE}/api/categorias/${categoria.id}`, {
-                        method: 'DELETE'
+                        method: 'DELETE',
+                        headers: setAuthHeader()
                     });
                     const data = await response.json();
 

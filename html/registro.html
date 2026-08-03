@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro | Finca El Progreso</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="auth-page">
+    <div class="auth-container">
+        <div class="auth-card">
+            <h2>Crear cuenta</h2>
+            <p>Registra tu usuario para ingresar al sistema.</p>
+            <form id="form-registro">
+                <input type="text" id="registro-nombre" placeholder="Nombre" required>
+                <input type="text" id="registro-apellido" placeholder="Apellido" required>
+                <input type="email" id="registro-correo" placeholder="Correo electrónico" required>
+                <input type="tel" id="registro-telefono" placeholder="Teléfono">
+                <input type="password" id="registro-password" placeholder="Contraseña" required>
+                <button type="submit">Registrarse</button>
+            </form>
+            <div id="registro-message" class="auth-message"></div>
+            <p class="auth-link">¿Ya tienes cuenta? <a href="login.html">Inicia sesión</a></p>
+        </div>
+    </div>
+    <script src="../js/script.js"></script>
+</body>
+</html>

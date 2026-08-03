@@ -48,7 +48,7 @@ export DB_PASSWORD=root
 export DB_HOST=localhost
 export DB_NAME=el_progreso_db
 export DB_PORT=5432
-export PORT=3000
+export PORT=5500
 ```
 
 > En Windows PowerShell usa `setx` o un archivo `.env` según tu entorno.
@@ -70,6 +70,23 @@ El archivo `db/schema.sql` crea las tablas:
   - `estado` VARCHAR(20) NOT NULL DEFAULT 'Activo' CHECK (estado IN ('Activo','Inactivo','Sin stock'))
   - `categoria_id` INT REFERENCES categorias(id) ON DELETE SET NULL
   - `creado_en` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+- `usuarios`
+  - `id_usuario` SERIAL PRIMARY KEY
+  - `nombre` VARCHAR(100) NOT NULL
+  - `apellido` VARCHAR(100) NOT NULL
+  - `correo` VARCHAR(150) NOT NULL UNIQUE
+  - `telefono` VARCHAR(20)
+  - `contraseña` VARCHAR(255) NOT NULL
+  - `rol` VARCHAR(20) NOT NULL DEFAULT 'usuario' CHECK (rol IN ('usuario','admin'))
+
+El sistema de autenticación usa estas rutas principales:
+
+- `POST /api/auth/register` para crear usuarios nuevos.
+- `POST /api/auth/login` para iniciar sesión.
+- `GET /api/auth/me` para obtener el usuario autenticado mediante token.
+
+El frontend guarda el token en `localStorage` y lo envía en el encabezado `Authorization: Bearer <token>` para acceder a rutas protegidas.
 
 ### Consultas SQL usadas para categorías
 
@@ -139,7 +156,7 @@ node server.js
 Luego abre en el navegador:
 
 ```text
-http://127.0.0.1:3000
+http://127.0.0.1:5501
 ```
 
 ## Notas

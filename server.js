@@ -1,4 +1,5 @@
 const path = require('path');
+const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -9,7 +10,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname)));
 
 const pool = new Pool({
     user: process.env.DB_USER || 'postgres',
@@ -17,6 +17,189 @@ const pool = new Pool({
     database: process.env.DB_NAME || 'el_progreso_db',
     password: process.env.DB_PASSWORD || 'root',
     port: process.env.DB_PORT || 5432,
+});
+
+const sessions = new Map();
+
+function hashPassword(password) {
+    return crypto.createHash('sha256').update(String(password)).digest('hex');
+}
+
+async function getAuthenticatedUser(req) {
+    const authHeader = req.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return null;
+    }
+
+    const token = authHeader.slice(7);
+    const session = sessions.get(token);
+    if (!session) {
+        return null;
+    }
+
+    const result = await pool.query(
+        `SELECT id_usuario, nombre, apellido, correo, telefono, contraseña, rol
+         FROM usuarios WHERE id_usuario = $1`,
+        [session.userId]
+    );
+
+    return result.rows[0] || null;
+}
+
+async function initializeDatabase() {
+    try {
+        console.log('Intentando conectar a la base de datos...');
+        
+        // Test de conexión
+        await pool.query('SELECT 1');
+        console.log('✓ Conexión a base de datos exitosa');
+        
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id_usuario SERIAL PRIMARY KEY,
+                nombre VARCHAR(100) NOT NULL,
+                apellido VARCHAR(100) NOT NULL,
+                correo VARCHAR(150) NOT NULL UNIQUE,
+                telefono VARCHAR(20),
+                contraseña VARCHAR(255) NOT NULL,
+                rol VARCHAR(20) NOT NULL DEFAULT 'usuario' CHECK (rol IN ('usuario', 'admin'))
+            );
+        `);
+        console.log('✓ Tabla usuarios verificada/creada');
+
+        const adminHash = hashPassword('admin');
+        await pool.query(`
+            INSERT INTO usuarios (nombre, apellido, correo, telefono, contraseña, rol)
+            SELECT 'Admin', 'Sistema', 'admin@finca.com', NULL, $1, 'admin'
+            WHERE NOT EXISTS (
+                SELECT 1 FROM usuarios WHERE LOWER(correo) = LOWER('admin@finca.com')
+            );
+        `, [adminHash]);
+        console.log('✓ Usuario admin verificado/creado');
+    } catch (err) {
+        console.error('❌ Error en inicialización de BD:', err.message);
+        console.error('Detalles:', err);
+        throw err;
+    }
+}
+
+app.post('/api/auth/register', async (req, res) => {
+    const { nombre, apellido, correo, telefono, contraseña, rol = 'usuario' } = req.body;
+
+    if (!nombre || !apellido || !correo || !contraseña) {
+        return res.status(400).json({ error: 'Nombre, apellido, correo y contraseña son obligatorios.' });
+    }
+
+    if (!['usuario', 'admin'].includes(rol)) {
+        return res.status(400).json({ error: 'Rol inválido.' });
+    }
+
+    try {
+        const existente = await pool.query(
+            'SELECT 1 FROM usuarios WHERE LOWER(correo) = LOWER($1)',
+            [correo]
+        );
+
+        if (existente.rowCount > 0) {
+            return res.status(409).json({ error: 'Ya existe un usuario con ese correo.' });
+        }
+
+        const result = await pool.query(
+            `INSERT INTO usuarios (nombre, apellido, correo, telefono, contraseña, rol)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING id_usuario, nombre, apellido, correo, telefono, rol;`,
+            [nombre.trim(), apellido.trim(), correo.trim(), telefono?.trim() || null, hashPassword(contraseña), rol]
+        );
+
+        const usuario = result.rows[0];
+        res.status(201).json({ message: 'Usuario registrado correctamente.', usuario });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error al registrar el usuario.' });
+    }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+    const { correo, contraseña } = req.body;
+
+    if (!correo || !contraseña) {
+        return res.status(400).json({ error: 'Correo y contraseña son obligatorios.' });
+    }
+
+    try {
+        const result = await pool.query(
+            `SELECT id_usuario, nombre, apellido, correo, telefono, contraseña, rol
+             FROM usuarios WHERE LOWER(correo) = LOWER($1)`,
+            [correo]
+        );
+
+        const usuario = result.rows[0];
+        if (!usuario || hashPassword(contraseña) !== usuario.contraseña) {
+            return res.status(401).json({ error: 'Credenciales incorrectas.' });
+        }
+
+        const token = crypto.randomBytes(24).toString('hex');
+        sessions.set(token, { userId: usuario.id_usuario });
+
+        res.json({
+            token,
+            usuario: {
+                id: usuario.id_usuario,
+                nombre: usuario.nombre,
+                apellido: usuario.apellido,
+                correo: usuario.correo,
+                telefono: usuario.telefono,
+                rol: usuario.rol,
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error al iniciar sesión.' });
+    }
+});
+
+app.get('/api/auth/me', async (req, res) => {
+    const usuario = await getAuthenticatedUser(req);
+    if (!usuario) {
+        return res.status(401).json({ error: 'No autenticado.' });
+    }
+
+    res.json({
+        id: usuario.id_usuario,
+        nombre: usuario.nombre,
+        apellido: usuario.apellido,
+        correo: usuario.correo,
+        telefono: usuario.telefono,
+        rol: usuario.rol,
+    });
+});
+
+app.post('/api/auth/logout', async (req, res) => {
+    const authHeader = req.get('authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        sessions.delete(token);
+    }
+    res.json({ message: 'Sesión cerrada.' });
+});
+
+app.get('/api/usuarios', async (req, res) => {
+    const usuario = await getAuthenticatedUser(req);
+    if (!usuario || usuario.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo el administrador puede ver los usuarios.' });
+    }
+
+    try {
+        const result = await pool.query(`
+            SELECT id_usuario, nombre, apellido, correo, telefono, rol
+            FROM usuarios
+            ORDER BY id_usuario ASC;
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error al consultar usuarios:', err);
+        res.status(500).json({ error: 'Error al consultar usuarios.' });
+    }
 });
 
 app.get('/api/categorias', async (req, res) => {
@@ -38,6 +221,11 @@ app.get('/api/categorias', async (req, res) => {
 });
 
 app.post('/api/categorias', async (req, res) => {
+    const usuario = await getAuthenticatedUser(req);
+    if (!usuario || usuario.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo el administrador puede gestionar categorías.' });
+    }
+
     const nombre = req.body.nombre?.trim();
     if (!nombre) {
         return res.status(400).json({ error: 'El nombre de la categoría es obligatorio.' });
@@ -57,6 +245,11 @@ app.post('/api/categorias', async (req, res) => {
 });
 
 app.put('/api/categorias/:id', async (req, res) => {
+    const usuario = await getAuthenticatedUser(req);
+    if (!usuario || usuario.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo el administrador puede gestionar categorías.' });
+    }
+
     const id = parseInt(req.params.id, 10);
     const nombre = req.body.nombre?.trim();
 
@@ -84,6 +277,11 @@ app.put('/api/categorias/:id', async (req, res) => {
 });
 
 app.delete('/api/categorias/:id', async (req, res) => {
+    const usuario = await getAuthenticatedUser(req);
+    if (!usuario || usuario.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo el administrador puede gestionar categorías.' });
+    }
+
     const id = parseInt(req.params.id, 10);
     if (!Number.isInteger(id)) {
         return res.status(400).json({ error: 'ID inválido.' });
@@ -174,6 +372,11 @@ app.get('/api/productos', async (req, res) => {
 });
 
 app.post('/api/productos', async (req, res) => {
+    const usuario = await getAuthenticatedUser(req);
+    if (!usuario || usuario.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo el administrador puede agregar productos.' });
+    }
+
     console.log('POST /api/productos body=', req.body);
     const contentType = req.get('Content-Type');
     if (!contentType || !contentType.includes('application/json')) {
@@ -199,6 +402,11 @@ app.post('/api/productos', async (req, res) => {
 });
 
 app.patch('/api/productos/:id/estado', async (req, res) => {
+    const usuario = await getAuthenticatedUser(req);
+    if (!usuario || usuario.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo el administrador puede modificar productos.' });
+    }
+
     const { id } = req.params;
     const { estado } = req.body;
     if (!estado) {
@@ -217,6 +425,11 @@ app.patch('/api/productos/:id/estado', async (req, res) => {
 });
 
 app.patch('/api/productos/:id', async (req, res) => {
+    const usuario = await getAuthenticatedUser(req);
+    if (!usuario || usuario.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo el administrador puede modificar productos.' });
+    }
+
     const { id } = req.params;
     const { nombre, descripcion, precio, stock, categoria_id, estado } = req.body;
     const updates = [];
@@ -264,6 +477,11 @@ app.patch('/api/productos/:id', async (req, res) => {
 });
 
 app.delete('/api/productos/:id', async (req, res) => {
+    const usuario = await getAuthenticatedUser(req);
+    if (!usuario || usuario.rol !== 'admin') {
+        return res.status(403).json({ error: 'Solo el administrador puede eliminar productos.' });
+    }
+
     try {
         const result = await pool.query('DELETE FROM productos WHERE id = $1 RETURNING *;', [req.params.id]);
         if (result.rowCount === 0) return res.status(404).json({ error: 'Producto no encontrado.' });
@@ -412,9 +630,19 @@ app.get('/api/reportes/productos/excel', async (req, res) => {
     }
 });
 
+function getRouterStack() {
+    if (app._router && Array.isArray(app._router.stack)) {
+        return app._router.stack;
+    }
+    if (typeof app.router === 'function' && Array.isArray(app.router.stack)) {
+        return app.router.stack;
+    }
+    return [];
+}
+
 app.get('/debug/routes', (req, res) => {
     const routes = [];
-    const stack = app._router?.stack || [];
+    const stack = getRouterStack();
     stack.forEach(layer => {
         if (layer.route && layer.route.path) {
             const methods = Object.keys(layer.route.methods).join(', ').toUpperCase();
@@ -424,14 +652,28 @@ app.get('/debug/routes', (req, res) => {
     res.json(routes);
 });
 
+// Servir archivos estáticos DESPUÉS de las rutas API
+app.use(express.static(path.join(__dirname)));
+
+const HOST = process.env.HOST || '0.0.0.0';
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Servidor en puerto ${PORT}`);
-    const stack = app._router?.stack || [];
-    stack.forEach(layer => {
-        if (layer.route && layer.route.path) {
-            const methods = Object.keys(layer.route.methods).join(', ').toUpperCase();
-            console.log('Route:', methods, layer.route.path);
-        }
+initializeDatabase()
+    .then(() => {
+        app.listen(PORT, HOST, () => {
+            console.log(`Servidor en ${HOST}:${PORT}`);
+            const stack = getRouterStack();
+            let routeCount = 0;
+            stack.forEach(layer => {
+                if (layer.route && layer.route.path) {
+                    const methods = Object.keys(layer.route.methods).join(', ').toUpperCase();
+                    console.log('✓ Route:', methods, layer.route.path);
+                    routeCount++;
+                }
+            });
+            console.log(`\nTotal de rutas registradas: ${routeCount}`);
+        });
+    })
+    .catch(err => {
+        console.error('❌ Error inicializando la base de datos:', err);
+        process.exit(1);
     });
-});

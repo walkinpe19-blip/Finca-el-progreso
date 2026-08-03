@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión | Finca Ganadera El Progreso</title>
+    <title>Usuarios | Finca Ganadera El Progreso</title>
     <link rel="stylesheet" href="../css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
@@ -24,36 +24,37 @@
         <a href="productos.html">Productos</a>
         <a href="galeria.html">Galería</a>
         <a href="contacto.html">Contacto</a>
-        <a href="gestion.html" class="activo nav-admin-only">Gestión</a>
+        <a href="gestion.html" class="nav-admin-only">Gestión</a>
         <a href="categorias.html" class="nav-admin-only">Categorías</a>
-        <a href="usuarios.html" class="nav-admin-only">Usuarios</a>
+        <a href="usuarios.html" class="activo nav-admin-only">Usuarios</a>
         <a href="reportes.html">Reportes</a>
     </nav>
 </header>
 
 <section class="gestion">
     <div class="titulo-seccion">
-        <span>Gestión</span>
-        <h2>Administración de productos</h2>
-        <p>Agrega nuevos productos y administra el catálogo que se muestra en el reporte.</p>
+        <span>Administración</span>
+        <h2>Usuarios registrados</h2>
+        <p>Consulta todos los usuarios registrados en el sistema. Solo los administradores pueden ver esta página.</p>
     </div>
-    <div class="form-gestion">
-        <form id="form-producto">
-            <input type="text" id="nombre" placeholder="Nombre" required>
-            <textarea id="descripcion" placeholder="Descripción"></textarea>
-            <input type="number" id="precio" step="0.01" placeholder="Precio" required>
-            <input type="number" id="stock" min="0" step="1" placeholder="Stock (0 = sin stock)" required>
-            <select id="categoria_id" required>
-                <option value="">Categoría...</option>
-            </select>
-            <select id="estado" required>
-                <option value="Activo">Activo</option>
-                <option value="Inactivo">Inactivo</option>
-                <option value="Sin stock">Sin stock</option>
-            </select>
-            <button type="submit">Guardar</button>
-        </form>
-        <div id="mensaje"></div>
+
+    <div class="tabla-usuarios-panel">
+        <table class="tabla-admin">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Apellido</th>
+                    <th>Correo</th>
+                    <th>Rol</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-usuarios">
+                <tr>
+                    <td colspan="5">Cargando usuarios...</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </section>
 
